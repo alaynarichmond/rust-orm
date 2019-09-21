@@ -4,11 +4,11 @@ extern crate syn;
 extern crate quote;
 extern crate postgres;
 
-use rust_orm_lib::{Column, Table, Relation};
 use proc_macro::TokenStream;
-use::syn::{parse_macro_input, DeriveInput, Type};
+use::syn::{parse_macro_input, DeriveInput};
 use::syn::Data::Struct;
 use syn::export::TokenStream2;
+use quote::ToTokens;
 
 
 #[proc_macro_derive(Relation)]
@@ -26,19 +26,20 @@ pub fn impl_get_table(input: TokenStream) -> TokenStream {
         _ => panic!()
     };
 
-    // let mut stdout = stdout();
-
     /* Generate code to make a Table struct */
-    let struct_name = input.ident;
+    let struct_ident = input.ident;
+    let struct_name = struct_ident.to_string();
     let mut construct_table_code: Vec<TokenStream2> = Vec::new();
 
     // Generate code to initialize table
-    construct_table_code.push(quote! {
+    let initialize_table_code = quote! {
         let mut table = Table {
-            name: #struct_name
+            name: #struct_name.to_owned(),
             columns: Vec::new()
-        }
-    });
+        };
+    };
+    construct_table_code.push(initialize_table_code);
+
 
     // Generate code to add columns
     for field in fields.into_iter() {
@@ -49,26 +50,23 @@ pub fn impl_get_table(input: TokenStream) -> TokenStream {
         // use them to create the column
         let add_column_code = quote! {
             table.columns.push(Column {
-                name: #field_name,
-                typ: #field_type,
-            })
+                name: #field_name.to_owned(),
+               // typ: #field_type
+            });
         };
         construct_table_code.push(add_column_code);
-        // writeln!(&mut stdout, "{}", field_name);
     }
-
-    construct_table_code.push(quote! {
-        return table;
-    });
 
 
     let impl_relation = quote! {
-        impl Relation for #struct_name {
-            fn get_table(&self) -> Table {
+        impl Relation for #struct_ident {
+            fn get_table() -> Table {
                 #(#construct_table_code) *
+                return table;
             }
         }
     };
+
 
     proc_macro::TokenStream::from(impl_relation)
 }
